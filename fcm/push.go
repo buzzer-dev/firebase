@@ -11,16 +11,21 @@ import (
 
 type PushNotification struct {
 	gorm.Model
-	Type   MessageType
-	UserID uint
-	Title  string
-	Body   string
-	Image  string
-	FcmID  *string
-	PushAt *time.Time
+	Type     MessageType
+	UserID   uint
+	Title    string
+	Body     string
+	Image    string
+	Deeplink string
+	FcmID    *string
+	PushAt   *time.Time
 }
 
 func (p *PushNotification) Push(ctx context.Context, db *gorm.DB, msgType MessageType) (err error) {
+	// Add timeout to prevent blocking on OAuth token refresh
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
 	client, err := app.Messaging(ctx)
 	if err != nil {
 		return err
@@ -30,8 +35,16 @@ func (p *PushNotification) Push(ctx context.Context, db *gorm.DB, msgType Messag
 		Body:     p.Body,
 		ImageURL: p.Image,
 	}
+
+	// Build data payload with deeplink
+	data := make(map[string]string)
+	if p.Deeplink != "" {
+		data["deeplink"] = p.Deeplink
+	}
+
 	message := &messaging.Message{
 		Notification: notification,
+		Data:         data,
 		APNS: &messaging.APNSConfig{
 			Payload: &messaging.APNSPayload{
 				Aps: &messaging.Aps{
@@ -67,7 +80,7 @@ func (p *PushNotification) Push(ctx context.Context, db *gorm.DB, msgType Messag
 		}
 	}
 
-	slog.Info("push message", "userID", p.UserID, "token", message.Token, "title", message.Notification.Title, "body", message.Notification.Body, "image", message.Notification.ImageURL)
+	slog.Info("push message", "userID", p.UserID, "token", message.Token, "title", message.Notification.Title, "body", message.Notification.Body, "image", message.Notification.ImageURL, "deeplink", p.Deeplink)
 	response, err := client.Send(ctx, message)
 	if err != nil {
 		return

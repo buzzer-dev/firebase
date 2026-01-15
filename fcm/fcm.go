@@ -30,3 +30,19 @@ func SaveAndPush(ctx context.Context, db *gorm.DB, msgType MessageType, userID u
 	}
 	return push.Push(ctx, db, msgType)
 }
+
+func SaveAndPushWithDeeplink(ctx context.Context, db *gorm.DB, msgType MessageType, userID uint, title, body, image, deeplink string) (err error) {
+	push := PushNotification{
+		Type:     msgType,
+		UserID:   userID,
+		Title:    title,
+		Body:     body,
+		Image:    image,
+		Deeplink: deeplink,
+	}
+	err = db.Create(&push).Error
+	if err != nil {
+		return
+	}
+	return push.Push(ctx, db, msgType)
+}
